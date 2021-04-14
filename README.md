@@ -1,1 +1,2 @@
-# Python-SDK-for-Veracity
+# Python SDK for Veracity
+
