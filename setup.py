@@ -13,7 +13,7 @@ __maintainer__ = 'Veracity Team'
 __email__ = 'veracity@dnv.com'
 __url__ = 'https://github.com/veracity/Python-SDK-for-Veracity'
 
-version = "0.0.1"
+version = "0.0.2"
 
 if __name__ == '__main__':
     # Build a list of all files to be included in the Python package folder.
@@ -36,7 +36,7 @@ if __name__ == '__main__':
         ),
         license=__licence__,
         packages=['veracity_platform'],
-        package_dir={'veracity_platform': 'src'},
+        package_dir={'': 'src'},
         package_data=package_data,
         install_requires=[],
         requires=[

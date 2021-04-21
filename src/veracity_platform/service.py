@@ -1,7 +1,7 @@
 """ Veracity Services API
 """
 
-from . import ApiBase
+from .base import ApiBase
 # TODO: Define a custom API exception.
 from urllib.error import HTTPError
 

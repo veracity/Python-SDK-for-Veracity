@@ -1,6 +1,7 @@
 """ Base components for the Veracity SDK
 """
 
+
 class ApiBase(object):
     """ Base for API access classes. Provides connection/disconnection.
 
