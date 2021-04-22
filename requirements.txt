@@ -1,3 +1,6 @@
 aiohttp
 msal
 requests
+azure-storage-blob
+pytest
+pytest-asyncio

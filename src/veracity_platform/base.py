@@ -1,4 +1,4 @@
-""" Base components for the Veracity SDK
+""" Base components for the Veracity SDK.
 """
 
 
@@ -13,17 +13,15 @@ class ApiBase(object):
             application has permissions to use the service.)
         subscription_key (str): Your application's API subscription key.  Gets
             sent in th Ocp-Apim-Subscription-Key header.
-        autoconnect (bool): Set True to automatically connect the session upon
-            use.  Default behaviour (False) is to raise an exception if the
-            session is not connected.
+        scope (str): A valid scope for a Veracity API.  Only one permitted.  See
+            `identity.ALLOWED_SCOPES` for options.
     """
 
-    def __init__(self, credential, subscription_key, autoconnect=False):
-        from .identity import SERVICE_API_SCOPE, DATA_API_SCOPE
+    def __init__(self, credential, subscription_key, scope):
         self.credential = credential
         self.subscription_key = subscription_key
         # By default we ask for access permission the service and data fabric APIs.
-        self.scopes = [SERVICE_API_SCOPE, DATA_API_SCOPE]
+        self.scopes = [scope]
         # Use this session for all HTTP requests.  We also add authentication
         # headers to all requests by default, so the child API services do not
         # need to.
@@ -71,10 +69,13 @@ class ApiBase(object):
             reset_headers = True
 
         if reset_headers:
-            token = self.credential.get_token(*self.scopes)
+            token = self.credential.get_token(self.scopes)
+            if 'error' in token:
+                raise RuntimeError(f'Failed to get token:\n{token}')
+            actual_token = token['access_token']
             self._headers = {
-                'Ocp-Apim-Subscription-Key': subscription or self.subscription,
-                'Authorization': f'Bearer {token}',
+                'Ocp-Apim-Subscription-Key': self.subscription_key,
+                'Authorization': f'Bearer {actual_token}',
             }
 
         if reset:
