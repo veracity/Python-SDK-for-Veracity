@@ -24,8 +24,8 @@ class UserAPI(ApiBase):
     API_ROOT = "https://api.veracity.com/veracity/services"
 
     def __init__(self, credential, subscription_key, version="v3", **kwargs):
-        super().__init__(credential, subscription_key, **kwargs)
-        self._url = f"{API_ROOT}/{version}/my"
+        super().__init__(credential, subscription_key, scope=kwargs.pop('scope', 'veracity_service'), **kwargs)
+        self._url = f"{UserAPI.API_ROOT}/{version}/my"
 
     @property
     def url(self):
@@ -87,7 +87,7 @@ class ClientAPI(ApiBase):
     API_ROOT = "https://api.veracity.com/veracity/services"
 
     def __init__(self, credential, subscription_key, version="v3", **kwargs):
-        super().__init__(credential, subscription_key, **kwargs)
+        super().__init__(credential, subscription_key, scope=kwargs.pop('scope', 'veracity_service'), **kwargs)
         self._url = f"{ClientAPI.API_ROOT}/{version}/this"
 
     @property
