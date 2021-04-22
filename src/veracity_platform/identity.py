@@ -56,9 +56,10 @@ class IdentityError(Exception):
 class Authority(object):
     """ Represents the Veracity authority from which to get tokens.
     """
-    def __init__(self, tenant=DEFAULT_TENANT_ID, policy=DEFAULT_POLICY):
+    def __init__(self, tenant=DEFAULT_TENANT_ID, policy=DEFAULT_POLICY, api_version='v2.0'):
         self.tenant = tenant
         self.policy = policy
+        self.api_version = api_version
         self.metadata = self.reload_metadata()
 
     @property
@@ -78,22 +79,26 @@ class Authority(object):
 
     @property
     def metadata_url(self):
-        return f"{self.url}/v2.0/.well-known/openid-configuration/"
+        if self.api_version in [1, 1.0, 'v1', 'v1.0']:
+            return f"{self.url}/.well-known/openid-configuration/"
+        else:
+            # Assume is like v2.0; will break otherwise.
+            return f"{self.url}/{self.api_version}/.well-known/openid-configuration/"
 
     @property
     def authorize_endpoint(self):
-        return f"{self.url}/oauth2/v2.0/authorize"
+        return self.metadata.get('authorization_endpoint')
 
     def token_endpoint(self):
-        return f"{self.url}/oauth2/v2.0/token"
+        return self.metadata.get('token_endpoint')
 
     @property
     def jwtk_endpoint(self):
-        return f"{self.url}/discovery/v2.0/keys"
+        return self.metadata.get('jwks_uri')
 
     @property
     def issuer_endpoint(self):
-        return self.metadata['issuer']
+        return self.metadata.get('issuer')
 
     @property
     def jwtk_url(self):
@@ -258,9 +263,9 @@ class IdentityService(object):
     # Overrides for msal.ConfidentialClientApplication
     # #########################################################################
 
-    def acquire_token_for_client(self, scopes, resource=None, **kwargs):
+    def acquire_token_for_client(self, scopes, **kwargs):
         clean_scopes = self.expand_veracity_scopes(scopes)
-        return self.openid_client.obtain_token_for_client(scope=clean_scopes)
+        return self.openid_client.obtain_token_for_client(scope=clean_scopes, **kwargs)
 
     def acquire_token_on_behalf_of(self, user_assertion, scopes, claims_challenge=None, **kwargs):
         import msal
@@ -439,11 +444,21 @@ class ClientSecretCredential(Credential):
             environment variables or Azure KeyVault instead.
     """
 
-    def __init__(self, client_id, client_secret, **kwargs):
-        service = IdentityService(client_id, redirect_uri=None, client_secret=client_secret)
+    def __init__(self, client_id, client_secret, resource=None, **kwargs):
+        if resource is not None:
+            # If we want to access a resource we need to use the v1 endpoints.  This
+            # is quite a niche use case but is still in use in places.
+            auth = Authority(api_version='v1.0')
+            service = IdentityService(client_id, redirect_uri=None, client_secret=client_secret, authority=auth)
+        else:
+            service = IdentityService(client_id, redirect_uri=None, client_secret=client_secret)
         super().__init__(service)
+        self.resource = resource
 
     def get_token(self, scopes, **kwargs):
+        if self.resource is not None:
+            # Inject the resource into the token request body.
+            kwargs['data'] = {'resource': self.resource}
         return self.service.acquire_token_for_client(scopes, **kwargs)
 
 
