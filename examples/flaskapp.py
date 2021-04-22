@@ -14,9 +14,10 @@ Requirements:
       $ pip install flask flask-session
 
 """
-from flask import Flask, request, redirect, jsonify, session, url_for
-from flask_session import Session
-from veracity.identity import IdentityService, SERVICE_API_SCOPE
+
+from flask import Flask, request, redirect, session, url_for
+# from flask_session import Session
+from veracity_platform.identity import IdentityService
 
 app = Flask(__name__)
 app.secret_key = 'mytopsecretkey'  # Used by Flask to secure the session data.
@@ -33,7 +34,7 @@ CLIENT_ID = "<YOUR_APPLICATION_CLIENT_ID>"
 CLIENT_SECRET = "<YOUR_APPLICATION_CLIENT_SECRET>"
 SUBSCRIPTION_KEY = "<YOUR_API_SUBSCRIPTION_KEY>"
 REDIRECT_URI = "http://localhost/login"
-SCOPES = [SERVICE_API_SCOPE]
+SCOPES = ['veracity_service']
 
 id_service = IdentityService(CLIENT_ID, REDIRECT_URI, client_secret=CLIENT_SECRET)
 
@@ -63,7 +64,7 @@ def login():
         flow = session.pop('flow', {})
         result = id_service.acquire_token_by_auth_code_flow(flow, request.args)
         print(result)
-        if not "error" in result:
+        if "error" not in result:
             result.pop("scope", None)  # Don't need this in the session
             result.pop("auth_code", None)
             session['token'] = result

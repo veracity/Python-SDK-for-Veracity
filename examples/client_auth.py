@@ -4,7 +4,7 @@ This flow is suitable for web services which require access to Veracity services
 but do not operate on user data.
 """
 
-from veracity.identity import ClientSecretCredential, SCOPE_IOT_API_CLIENT, IOT_API_SCOPE, ALLOWED_SCOPES
+from veracity_platform.identity import ClientSecretCredential
 
 CLIENT_ID = "<YOUR_APPLICATION_CLIENT_ID>"
 CLIENT_SECRET = "<YOUR_APPLICATION_CLIENT_SECRET>"

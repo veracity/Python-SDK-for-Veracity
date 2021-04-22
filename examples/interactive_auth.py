@@ -8,7 +8,7 @@ Notes:
 
 """
 
-from veracity.identity import IdentityService, InteractiveBrowserCredential, SERVICE_API_SCOPE, SCOPE_SERVICE_API_CLIENT
+from veracity_platform.identity import InteractiveBrowserCredential
 
 
 CLIENT_ID = "<YOUR_APPLICATION_CLIENT_ID>"
