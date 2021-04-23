@@ -430,7 +430,6 @@ class InteractiveBrowserCredential(Credential):
             raise IdentityError("Could not start an HTTP server for interactive credential.")
 
         flow = self.service.initiate_auth_code_flow(scopes, user_present=True)
-
         # Open system default browser to auth url.
         auth_url = flow['auth_uri']
         if not webbrowser.open(auth_url):

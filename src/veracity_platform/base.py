@@ -72,6 +72,7 @@ class ApiBase(object):
             token = self.credential.get_token(self.scopes)
             if 'error' in token:
                 raise RuntimeError(f'Failed to get token:\n{token}')
+            assert 'access_token' in token, 'Token does not provide access privileges.'
             actual_token = token['access_token']
             self._headers = {
                 'Ocp-Apim-Subscription-Key': self.subscription_key,
