@@ -24,7 +24,7 @@ References:
 """
 
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.error import HTTPError
+from typing import Sequence
 from msal.oauth2cli import oidc
 
 
@@ -35,18 +35,49 @@ DEFAULT_TENANT_ID = "dnvglb2cprod.onmicrosoft.com"
 DEFAULT_REPLY_URL = "http://localhost"
 DEFAULT_POLICY = "b2c_1a_signinwithadfsidp"
 
+# Veracity scopes require suffixes before use:
+#    "/.default" for web app, user not present scenario.  For example:
+#       https://dnvglb2cprod.onmicrosoft.com/83054ebf-1d7b-43f5-82ad-b2bde84d7b75/.default
+#    "/user_impersonation" for client application, user present scenario.  For example:
+#       'https://dnvglb2cprod.onmicrosoft.com/83054ebf-1d7b-43f5-82ad-b2bde84d7b75/user_impersonation
 ALLOWED_SCOPES = {
-    'veracity_service': 'https://dnvglb2cprod.onmicrosoft.com/83054ebf-1d7b-43f5-82ad-b2bde84d7b75/.default',
-    'veracity_datafabric': 'https://dnvglb2cprod.onmicrosoft.com/37c59c8d-cd9d-4cd5-b05a-e67f1650ee14/.default',
+    'veracity_service': 'https://dnvglb2cprod.onmicrosoft.com/83054ebf-1d7b-43f5-82ad-b2bde84d7b75',
+    'veracity_datafabric': 'https://dnvglb2cprod.onmicrosoft.com/37c59c8d-cd9d-4cd5-b05a-e67f1650ee14',
     # data is alias for datafabric.
-    'veracity_data': 'https://dnvglb2cprod.onmicrosoft.com/37c59c8d-cd9d-4cd5-b05a-e67f1650ee14/.default',
-    'veracity_iot': 'https://dnvglb2cprod.onmicrosoft.com/29a8760a-d13a-41ce-998e-0a00c3d948d5/.default',
-    # TODO: Do we need user_impersonation scopes?
-    # 'veracity_service_user': 'https://dnvglb2cprod.onmicrosoft.com/83054ebf-1d7b-43f5-82ad-b2bde84d7b75/user_impersonation',
-    # 'veracity_datafabric_user': 'https://dnvglb2cprod.onmicrosoft.com/37c59c8d-cd9d-4cd5-b05a-e67f1650ee14/user_impersonation',
-    # 'veracity_data_user': 'https://dnvglb2cprod.onmicrosoft.com/37c59c8d-cd9d-4cd5-b05a-e67f1650ee14/user_impersonation',
-    # 'veracity_iot_user': 'https://dnvglb2cprod.onmicrosoft.com/29a8760a-d13a-41ce-998e-0a00c3d948d5/user_impersonation',
+    'veracity_data': 'https://dnvglb2cprod.onmicrosoft.com/37c59c8d-cd9d-4cd5-b05a-e67f1650ee14',
+    'veracity_iot': 'https://dnvglb2cprod.onmicrosoft.com/29a8760a-d13a-41ce-998e-0a00c3d948d5',
 }
+
+
+def expand_veracity_scopes(scopes: Sequence[str], user_present: bool = False) -> Sequence[str]:
+    """ Replaces Veracity short-hand scopes for actual scopes, scenario dependent.
+
+    See :const:`ALLOWED_SCOPES` for list of short-hand scopes.
+
+    The actual scope depends on the scenario (user present or user not present),
+    By default it works for the user not present scenario.
+
+    Args:
+        scopes (list): List of scopes, which may include Veracity shorthand scopes.
+        user_present (bool): Set True for user-present, i.e. interactive, scenarios.
+
+    Returns:
+        A list of scopes with the Veracity scopes replaced with the correct
+        scope for this required scenario.
+    """
+    if scopes is None:
+        return None
+
+    if user_present:
+        suffix = '/user_impersonation'
+    else:
+        suffix = '/.default'
+
+    return [
+        ALLOWED_SCOPES[s] + suffix
+        if s in ALLOWED_SCOPES else s
+        for s in scopes
+    ]
 
 
 class IdentityError(Exception):
@@ -177,6 +208,8 @@ class IdentityService(object):
         """ Validates and acquires token from auth code flow.
         Drop-in replacement for msal.ClientApplication method.
 
+        Auth code flow is a "user present" scenario.
+
         References:
             - https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-auth-code-flow
         """
@@ -189,6 +222,8 @@ class IdentityService(object):
         if auth_response["state"] != flow["state"]:
             raise IdentityError("Authentication response OAuth state does not match the request.")
 
+        user_present = kwargs.pop('user_present', True)
+
         # Inject policy into query parameters.
         # This is the step where Veracity deviates from msal and azure.identity!
         params = kwargs.setdefault('params', {})
@@ -197,7 +232,7 @@ class IdentityService(object):
         return self.openid_client.obtain_token_by_auth_code_flow(
             flow,
             auth_response,
-            scope=scopes,
+            scope=expand_veracity_scopes(scopes, user_present=user_present),
             **kwargs,
         )
 
@@ -208,12 +243,14 @@ class IdentityService(object):
         References:
             - https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-auth-code-flow
         """
-        expanded_scopes = self.expand_veracity_scopes(scopes)
+        user_present = kwargs.pop('user_present', False)
+        expanded_scopes = expand_veracity_scopes(scopes, user_present=user_present)
         return self.openid_client.obtain_token_by_authorization_code(
             code, redirect_uri=self.redirect_uri, scope=expanded_scopes, **kwargs)
 
     def acquire_token_by_refresh_token(self, refresh_token, scopes, **kwargs):
-        expanded_scopes = self.expand_veracity_scopes(scopes)
+        user_present = kwargs.pop('user_present', False)
+        expanded_scopes = expand_veracity_scopes(scopes, user_present=user_present)
         token = self.openid_client.obtain_token_by_refresh_token(refresh_token, scope=expanded_scopes, **kwargs)
         self._save_token(token)
         return token
@@ -231,7 +268,8 @@ class IdentityService(object):
         """ Constructs URL for auth code grant.
         Drop-in replacement for msal.ClientApplication method.
         """
-        expanded_scopes = self.expand_veracity_scopes(scopes)
+        user_present = kwargs.pop('user_present', True)
+        expanded_scopes = expand_veracity_scopes(scopes, user_present=user_present)
         return self.openid_client.build_auth_request_uri(
             'code', redirect_url=self.redirect_uri, scope=expanded_scopes, **kwargs)
 
@@ -239,16 +277,19 @@ class IdentityService(object):
         """ Initiates auth code login flow for a user.
         Drop-in replacement for msal.ClientApplication method.
 
+        Auth code flow is a "user present" scenario.
+
         References:
             - https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-auth-code-flow
         """
         import msal
         import uuid
         state = kwargs.pop('state', str(uuid.uuid4()))
-        clean_scopes = self.expand_veracity_scopes(scopes)
-        decorated_scopes = msal.application.decorate_scope(clean_scopes, self.client_id)
+        user_present = kwargs.pop('user_present', True)
+        expanded_scopes = expand_veracity_scopes(scopes, user_present=user_present)
+        decorated_scopes = msal.application.decorate_scope(expanded_scopes, self.client_id)
         return self.openid_client.initiate_auth_code_flow(
-            decorated_scopes,
+            scope=decorated_scopes,
             redirect_uri=self.redirect_uri,
             state=state,
             # Inject policy into query parameters.
@@ -264,12 +305,15 @@ class IdentityService(object):
     # #########################################################################
 
     def acquire_token_for_client(self, scopes, **kwargs):
-        clean_scopes = self.expand_veracity_scopes(scopes)
-        return self.openid_client.obtain_token_for_client(scope=clean_scopes, **kwargs)
+        user_present = kwargs.pop('user_present', False)
+        expanded_scopes = expand_veracity_scopes(scopes, user_present=user_present)
+        return self.openid_client.obtain_token_for_client(scope=expanded_scopes, **kwargs)
 
     def acquire_token_on_behalf_of(self, user_assertion, scopes, claims_challenge=None, **kwargs):
         import msal
-        decorated_scopes = msal.application.decorate_scope(scopes, self.client_id)
+        user_present = kwargs.pop('user_present', True)
+        expanded_scopes = expand_veracity_scopes(scopes, user_present=user_present)
+        decorated_scopes = msal.application.decorate_scope(expanded_scopes, self.client_id)
         data = kwargs.pop("data", {})
         data["requested_token_use"] = "on_behalf_of"
         data["claims"] = claims_challenge
@@ -285,13 +329,6 @@ class IdentityService(object):
     # Veracity-specific methods
     # #########################################################################
 
-    @staticmethod
-    def expand_veracity_scopes(scopes):
-        """ Replaces Veracity short-hand scopes for correct scopes.
-        See ALLOWED_SCOPES for list of short-hand scopes.
-        """
-        return [ALLOWED_SCOPES.get(s, s) for s in scopes]
-
     def validate_token(self, token, nonce=None):
         """ Validates an authoriation token.
 
@@ -303,7 +340,7 @@ class IdentityService(object):
             - https://github.com/AzureAD/microsoft-authentication-library-for-python/blob/dev/msal/oauth2cli/oidc.py
         """
         if token is None:
-            raise IdentityError(f'Token is null')
+            raise IdentityError('Token is null')
 
         try:
             # msal includes a method to decode and validate ID tokens.
@@ -325,7 +362,7 @@ class IdentityService(object):
         token_data = oidc.decode_id_token(token['id_token'])
         try:
             userid = token_data['sub']
-            user_tokens = self.token_cache.setdefault('userid', [])
+            user_tokens = self.token_cache.setdefault(userid, [])
             user_tokens.append(token)
         except KeyError as kerr:
             raise IdentityError("Malformed ID token has no 'sub' parameter.") from kerr
@@ -392,7 +429,7 @@ class InteractiveBrowserCredential(Credential):
         if not server:
             raise IdentityError("Could not start an HTTP server for interactive credential.")
 
-        flow = self.service.initiate_auth_code_flow(scopes)
+        flow = self.service.initiate_auth_code_flow(scopes, user_present=True)
 
         # Open system default browser to auth url.
         auth_url = flow['auth_uri']
@@ -419,8 +456,6 @@ class InteractiveBrowserCredential(Credential):
         """ Starts an HTTP service on localhost to listen for browser redirects.
         This works the same as azure.identity.InteractiveBrowserCredential.
         """
-        from urllib.parse import urlparse
-        from http.server import BaseHTTPRequestHandler, HTTPServer
         server = AuthCodeRedirectServer(redirect_uri, timeout)
         return server
 
@@ -527,7 +562,7 @@ class AuthCodeRedirectServer(HTTPServer):
             azure-identity/azure/identity/_internal/auth_code_redirect_handler.py
     """
 
-    query_params = {}  # type: Mapping[str, Any]
+    query_params = {}
 
     def __init__(self, uri, timeout):
         from urllib.parse import urlparse
