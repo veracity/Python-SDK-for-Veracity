@@ -8,15 +8,18 @@ Notes:
 
 """
 
+import os
 from veracity_platform.identity import InteractiveBrowserCredential
 
-
-CLIENT_ID = "<YOUR_APPLICATION_CLIENT_ID>"
+CLIENT_ID = os.environ.get("EXAMPLE_VERACITY_CLIENT_ID")
 # TODO: Secret should not be necessary for user-auth flow, but Veracity IDP doesn't work without it.
-CLIENT_SECRET = "<YOUR_APPLICATION_CLIENT_SECRET>"
+CLIENT_SECRET = os.environ.get("EXAMPLE_VERACITY_CLIENT_SECRET")
 REDIRECT_URI = "http://localhost/login"
 
 # service = IdentityService(CLIENT_ID, REDIRECT_URI, client_secret=CLIENT_SECRET)
 cred = InteractiveBrowserCredential(CLIENT_ID, REDIRECT_URI, client_secret=CLIENT_SECRET)
 token = cred.get_token(scopes=['veracity_service'], timeout=30)
 print(token)
+assert 'access_token' in token
+# token = cred.get_token(scopes=['veracity_service_user'], timeout=30)
+# print(token)
