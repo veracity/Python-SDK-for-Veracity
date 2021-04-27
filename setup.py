@@ -13,7 +13,7 @@ __maintainer__ = 'Veracity Team'
 __email__ = 'veracity@dnv.com'
 __url__ = 'https://github.com/veracity/Python-SDK-for-Veracity'
 
-version = "0.0.2"
+version = "0.0.2a1"
 
 if __name__ == '__main__':
     # Build a list of all files to be included in the Python package folder.
@@ -38,11 +38,12 @@ if __name__ == '__main__':
         packages=['veracity_platform'],
         package_dir={'': 'src'},
         package_data=package_data,
-        install_requires=[],
-        requires=[
+        install_requires=[
             'aiohttp',
             'msal',
             'requests',
+            'azure-storage-blob',
+            'pandas',
         ],
         classifiers=[
             "Programming Language :: Python :: 3",
