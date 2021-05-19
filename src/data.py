@@ -1,2 +1,0 @@
-""" Veracity Data Fabric API
-"""

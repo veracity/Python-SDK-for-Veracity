@@ -1,0 +1,8 @@
+# These are the testing requirements.
+aiohttp
+msal
+requests
+azure-storage-blob
+pytest
+pytest-asyncio
+flask

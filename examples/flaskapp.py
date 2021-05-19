@@ -14,9 +14,11 @@ Requirements:
       $ pip install flask flask-session
 
 """
-from flask import Flask, request, redirect, jsonify, session, url_for
+
+import os
+from flask import Flask, request, redirect, session, url_for
 from flask_session import Session
-from veracity.identity import IdentityService, SERVICE_API_SCOPE
+from veracity_platform.identity import IdentityService
 
 app = Flask(__name__)
 app.secret_key = 'mytopsecretkey'  # Used by Flask to secure the session data.
@@ -29,11 +31,11 @@ app.secret_key = 'mytopsecretkey'  # Used by Flask to secure the session data.
 # Parameters from veracity app on developer portal.  Caution! The redirect URI must
 # be *exactly* the same as a "Reply URL" in the developer portal, including the port number!
 # Veracity  will reject auth requests if the redirect URI does not match a specified reply URL.
-CLIENT_ID = "<YOUR_APPLICATION_CLIENT_ID>"
-CLIENT_SECRET = "<YOUR_APPLICATION_CLIENT_SECRET>"
-SUBSCRIPTION_KEY = "<YOUR_API_SUBSCRIPTION_KEY>"
+CLIENT_ID = os.environ.get("EXAMPLE_VERACITY_CLIENT_ID")
+CLIENT_SECRET = os.environ.get("EXAMPLE_VERACITY_CLIENT_SECRET")
+SUBSCRIPTION_KEY = os.environ.get("EXAMPLE_VERACITY_SUBSCRIPTION_KEY")
 REDIRECT_URI = "http://localhost/login"
-SCOPES = [SERVICE_API_SCOPE]
+SCOPES = ['veracity_service']
 
 id_service = IdentityService(CLIENT_ID, REDIRECT_URI, client_secret=CLIENT_SECRET)
 
@@ -62,11 +64,9 @@ def login():
     if 'code' in request.args:
         flow = session.pop('flow', {})
         result = id_service.acquire_token_by_auth_code_flow(flow, request.args)
-        print(result)
-        if not "error" in result:
-            result.pop("scope", None)  # Don't need this in the session
-            result.pop("auth_code", None)
-            session['token'] = result
+        if "error" not in result:
+            session['id_token'] = result.get('id_token')
+            session['access_token'] = result.get('access_token')
             return redirect(url_for('index'))
 
     # No auth code or token acquisition failed.  Redirect to Veracity login.
@@ -76,9 +76,9 @@ def login():
 
 def validate_user(session):
     try:
-        token = session.get('token', {})
-        id_token = token.get('id_token')
-        jwt_content = id_service.validate_token(id_token)
+        token = session.get('id_token')
+        print(token)
+        jwt_content = id_service.validate_token(token)
         session['username'] = jwt_content.get('name')
     except Exception as err:
         print(err)
@@ -91,8 +91,7 @@ def get_user_profile(session):
     """ Queries user profile from Veracity service API.
     """
     import requests
-    token = session.get("token", {})
-    access_token = token.get("access_token", "")
+    access_token = session.get("access_token", {})
     url = "https://api.veracity.com/veracity/services/v3/my/profile"
     headers = {
         "Authorization": f"Bearer {access_token}",
